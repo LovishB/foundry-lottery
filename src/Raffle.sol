@@ -6,6 +6,7 @@ errors
 interfaces/libraries/contracts
 
 2) Type declarations
+Enums
 State variables
 Events
 Modifiers
@@ -29,6 +30,10 @@ import {VRFV2PlusClient} from "@chainlink/contracts/v0.8/vrf/dev/libraries/VRFV2
 import {AutomationCompatibleInterface} from "@chainlink/contracts/v0.8/automation/AutomationCompatible.sol"; //import for automatic calls
 
 
+/* Errors */
+error Raffle__SendMoreToEnterRaffle(); //give prefix(Raffle) for better reading
+error Raffle__TransferWinnerFailed();
+error Raffle__RaffleNotOpen();
 
 /**
  * @title A sample Raffle/Lottery Contract
@@ -37,11 +42,6 @@ import {AutomationCompatibleInterface} from "@chainlink/contracts/v0.8/automatio
  * @dev This implements the Chainlink VRF Version 2
  */
 contract Raffle is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {  //'is' means extends(inheritance)
-    /* Errors */
-    error Raffle__SendMoreToEnterRaffle(); //give prefix(Raffle) for better reading
-    error Raffle__TransferWinnerFailed();
-    error Raffle__RaffleNotOpen();
-
     /* Enums */
     enum RaffleState {
         OPEN,
@@ -151,21 +151,24 @@ contract Raffle is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {  //'is
      * calls to send the money to the random winner.
      */
     function fulfillRandomWords(uint256, /* requestId */ uint256[] calldata randomWords) internal override {
+        //deciding winner
         uint256 indexOfWinner = randomWords[0] % s_players.length;
         address payable recentWinner = s_players[indexOfWinner];
         s_recentWinner = recentWinner;
+        emit WinnerPicked(recentWinner); //emit the event when someone wins the lottery
+
+        //resetting lottery
         s_players = new address payable[](0); //reset the players 
         s_lastRaffleTimeStamp = block.timestamp;
         s_raffleState = RaffleState.OPEN; //open the lottery again
 
-        emit WinnerPicked(recentWinner); //emit the event when someone wins the lottery
+        //tx
         (   bool callSuccess, 
             /* bytes dataReturned */
         ) = recentWinner.call{value: address(this).balance}(""); //sending winner funds
         if(!callSuccess) {
             revert Raffle__TransferWinnerFailed();
         }
-        s_raffleState = RaffleState.OPEN; //open the lottery
     }
 
     /* Getter Functions */
@@ -191,5 +194,9 @@ contract Raffle is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {  //'is
 
     function getRecentWinner() public view returns (address) {
         return s_recentWinner;
+    }
+
+    function getRaffleState() public view returns (RaffleState) {
+        return s_raffleState;
     }
 }
