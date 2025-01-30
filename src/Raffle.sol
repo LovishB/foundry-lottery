@@ -34,6 +34,8 @@ import {AutomationCompatibleInterface} from "@chainlink/contracts/v0.8/automatio
 error Raffle__SendMoreToEnterRaffle(); //give prefix(Raffle) for better reading
 error Raffle__TransferWinnerFailed();
 error Raffle__RaffleNotOpen();
+error Raffle__UpkeepNotNeeded(uint256 currentBalance, uint256 numPlayers, uint256 raffleState);
+
 
 /**
  * @title A sample Raffle/Lottery Contract
@@ -116,13 +118,17 @@ contract Raffle is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {  //'is
      */
     function checkUpkeep( bytes calldata /* checkData */) public view override 
         returns (bool upkeepNeeded, bytes memory /* performData */) {
-       bool upkeep = 
-        (s_raffleState == RaffleState.OPEN) && //state should be open
-        (s_players.length > 0) && //should have atleast 1 player
-        (address(this).balance > 0) && //should have balance to give winner
-        ((block.timestamp - s_lastRaffleTimeStamp) > i_raffleInterval); //sufficient time has passed
-
+        bool upkeep = checkRaffleToEnd();
         return (upkeep, "0x0");
+    }
+
+    /* helper checkUpKeep */
+    function checkRaffleToEnd() internal view returns (bool) {
+        return
+            (s_raffleState == RaffleState.OPEN) && //state should be open
+            (s_players.length > 0) && //should have atleast 1 player
+            (address(this).balance > 0) && //should have balance to give winner
+            ((block.timestamp - s_lastRaffleTimeStamp) > i_raffleInterval); //sufficient time has passed
     }
 
     /**
@@ -130,6 +136,10 @@ contract Raffle is VRFConsumerBaseV2Plus, AutomationCompatibleInterface {  //'is
      * and it kicks off a Chainlink VRF call to get a random winner.
      */
     function performUpkeep(bytes calldata /* performData */) external override {
+        if(!checkRaffleToEnd()) { //since this function can be called by anyone, we have to check here again
+            revert Raffle__UpkeepNotNeeded(address(this).balance, s_players.length, uint256(s_raffleState));
+        }
+
         s_raffleState = RaffleState.CALCULATING; //close the lottery until we calculate winner
 
         //Random number should be from outside blockchain as we are deterministic

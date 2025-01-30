@@ -58,15 +58,22 @@ contract HelperConfig is Script {
 
         // Deploy mocks
         vm.startBroadcast();
+        //deploy Mock Coordinator
         VRFCoordinatorV2_5Mock vrfCoordinatorMock = new VRFCoordinatorV2_5Mock(
             0.25 ether, // baseFee
             1e9, // gasPriceLink
             4e15 //link token
         );
+
+        //Create a subscription
+        uint256 subId = vrfCoordinatorMock.createSubscription();
+    
+        //Fund the subscription
+        vrfCoordinatorMock.fundSubscription(subId, 3 ether);
         vm.stopBroadcast();
 
         return NetworkConfig({
-            subscriptionId: 0,
+            subscriptionId: subId,
             gasLane: 0x474e34a077df58807dbe9c96d3c009b23b3c6d0cce433e59bbf5b34f823bc56c,
             callbackGasLimit: 500000,
             entranceFee: 0.01 ether,
